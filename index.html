@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calorie Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f9f9f8;
+      --surface: #ffffff;
+      --border: rgba(0,0,0,0.1);
+      --text: #1a1a1a;
+      --muted: #666;
+      --accent: #2563eb;
+      --accent-bg: #eff6ff;
+      --success: #16a34a;
+      --success-bg: #f0fdf4;
+      --warning: #d97706;
+      --warning-bg: #fffbeb;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --radius: 10px;
+      --radius-lg: 14px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111110;
+        --surface: #1c1c1a;
+        --border: rgba(255,255,255,0.1);
+        --text: #f0efe9;
+        --muted: #999;
+        --accent: #3b82f6;
+        --accent-bg: #1e3a5f;
+        --success-bg: #14301f;
+        --warning-bg: #2d200a;
+        --danger-bg: #2d0f0f;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 0.5px solid var(--border);
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 18px; font-weight: 500; }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #ccc; display: inline-block; margin-right: 6px;
+    }
+    .status-dot.connected { background: var(--success); }
+
+    .status-label { font-size: 13px; color: var(--muted); }
+
+    main { max-width: 760px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+    .section { margin-bottom: 1.5rem; }
+
+    .card {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 1rem;
+    }
+
+    .setup-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 1rem;
+    }
+
+    .setup-box {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      width: 100%; max-width: 440px;
+      border: 0.5px solid var(--border);
+    }
+
+    .setup-box h2 { font-size: 20px; font-weight: 500; margin-bottom: 0.5rem; }
+    .setup-box p { font-size: 14px; color: var(--muted); margin-bottom: 1.5rem; line-height: 1.6; }
+
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+
+    input[type="text"], input[type="number"], input[type="password"] {
+      width: 100%;
+      padding: 8px 12px;
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      margin-bottom: 1rem;
+      outline: none;
+    }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+
+    button {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      border: 0.5px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: var(--bg); }
+    button:active { transform: scale(0.98); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      font-weight: 500;
+    }
+    .btn-primary:hover { background: #1d4ed8; }
+
+    .btn-danger { color: var(--danger); border-color: var(--danger); }
+    .btn-danger:hover { background: var(--danger-bg); }
+
+    .macro-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 1rem;
+    }
+
+    .macro-input-group label { font-size: 12px; }
+
+    .goal-bar-wrap { margin-bottom: 0.75rem; }
+    .goal-bar-label {
+      display: flex; justify-content: space-between;
+      font-size: 13px; margin-bottom: 4px;
+    }
+    .goal-bar-label span:first-child { color: var(--muted); }
+    .goal-bar-track {
+      height: 6px; background: var(--border);
+      border-radius: 99px; overflow: hidden;
+    }
+    .goal-bar-fill {
+      height: 100%; border-radius: 99px;
+      transition: width 0.4s ease;
+    }
+
+    .entries-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .entry-row {
+      display: flex; align-items: center;
+      padding: 10px 12px;
+      background: var(--bg);
+      border-radius: var(--radius);
+      border: 0.5px solid var(--border);
+      gap: 12px;
+    }
+
+    .entry-name { flex: 1; font-size: 14px; font-weight: 500; }
+    .entry-macros { font-size: 12px; color: var(--muted); }
+    .entry-kcal { font-size: 14px; font-weight: 500; min-width: 60px; text-align: right; }
+
+    .delete-btn {
+      background: none; border: none; padding: 2px 6px;
+      color: var(--muted); cursor: pointer; font-size: 16px;
+      border-radius: 4px;
+    }
+    .delete-btn:hover { color: var(--danger); background: var(--danger-bg); }
+
+    .date-nav {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 1rem;
+    }
+    .date-nav span { font-size: 15px; font-weight: 500; flex: 1; text-align: center; }
+    .date-nav button { padding: 6px 12px; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 1rem;
+    }
+
+    .metric-card {
+      background: var(--bg);
+      border-radius: var(--radius);
+      padding: 12px;
+      text-align: center;
+    }
+    .metric-card .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .metric-card .metric-val { font-size: 22px; font-weight: 500; }
+
+    .empty-state {
+      text-align: center; padding: 2rem 1rem;
+      color: var(--muted); font-size: 14px;
+    }
+
+    .tab-row {
+      display: flex; gap: 8px; margin-bottom: 1rem;
+    }
+    .tab-btn {
+      padding: 6px 14px; font-size: 13px;
+      border-radius: 99px;
+    }
+    .tab-btn.active {
+      background: var(--accent-bg);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .chart-wrap { position: relative; height: 220px; }
+
+    .saving-indicator {
+      font-size: 12px; color: var(--muted);
+      display: none; align-items: center; gap: 4px;
+    }
+    .saving-indicator.visible { display: flex; }
+
+    .alert {
+      padding: 10px 14px; border-radius: var(--radius);
+      font-size: 13px; margin-bottom: 1rem;
+    }
+    .alert-success { background: var(--success-bg); color: var(--success); }
+    .alert-danger { background: var(--danger-bg); color: var(--danger); }
+
+    @media (max-width: 480px) {
+      .macro-grid, .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="setup-overlay" id="setupOverlay">
+  <div class="setup-box">
+    <h2>Welcome</h2>
+    <p>Connect your GitHub repo to save your calorie logs permanently. Your data is stored in <strong>ZES3/calorie-tracker</strong> as a JSON file.</p>
+
+    <div id="setupAlert"></div>
+
+    <label>GitHub personal access token</label>
+    <input type="password" id="tokenInput" placeholder="ghp_..." />
+
+    <label>Daily calorie goal</label>
+    <input type="number" id="goalCalInput" placeholder="2000" value="2000" />
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem;">
+      <div>
+        <label>Protein (g)</label>
+        <input type="number" id="goalProtInput" placeholder="150" value="150" />
+      </div>
+      <div>
+        <label>Carbs (g)</label>
+        <input type="number" id="goalCarbInput" placeholder="200" value="200" />
+      </div>
+      <div>
+        <label>Fat (g)</label>
+        <input type="number" id="goalFatInput" placeholder="65" value="65" />
+      </div>
+    </div>
+
+    <button class="btn-primary" style="width:100%" onclick="setupSave()">Connect & start tracking</button>
+  </div>
+</div>
+
+<header>
+  <h1>Calorie tracker</h1>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span class="saving-indicator" id="savingIndicator">Saving...</span>
+    <span><span class="status-dot" id="statusDot"></span><span class="status-label" id="statusLabel">Not connected</span></span>
+    <button onclick="openSettings()" style="padding:6px 10px;font-size:13px;">Settings</button>
+  </div>
+</header>
+
+<main>
+  <div id="alertBanner"></div>
+
+  <div class="section">
+    <div class="date-nav">
+      <button onclick="changeDay(-1)">&#8592;</button>
+      <span id="dateLabel"></span>
+      <button onclick="changeDay(1)">&#8594;</button>
+    </div>
+
+    <div class="summary-grid">
+      <div class="metric-card">
+        <div class="metric-label">Calories</div>
+        <div class="metric-val" id="sumCal">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Protein (g)</div>
+        <div class="metric-val" id="sumProt">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Carbs (g)</div>
+        <div class="metric-val" id="sumCarb">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Fat (g)</div>
+        <div class="metric-val" id="sumFat">0</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">Goals</div>
+      <div class="goal-bar-wrap">
+        <div class="goal-bar-label"><span>Calories</span><span id="barCalLabel">0 / 2000</span></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill" id="barCal" style="width:0%;background:#3b82f6;"></div></div>
+      </div>
+      <div class="goal-bar-wrap">
+        <div class="goal-bar-label"><span>Protein</span><span id="barProtLabel">0 / 150g</span></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill" id="barProt" style="width:0%;background:#16a34a;"></div></div>
+      </div>
+      <div class="goal-bar-wrap">
+        <div class="goal-bar-label"><span>Carbs</span><span id="barCarbLabel">0 / 200g</span></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill" id="barCarb" style="width:0%;background:#d97706;"></div></div>
+      </div>
+      <div class="goal-bar-wrap" style="margin-bottom:0">
+        <div class="goal-bar-label"><span>Fat</span><span id="barFatLabel">0 / 65g</span></div>
+        <div class="goal-bar-track"><div class="goal-bar-fill" id="barFat" style="width:0%;background:#7c3aed;"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <div class="card-title">Add food</div>
+      <div style="margin-bottom:0.75rem;">
+        <label>Food name</label>
+        <input type="text" id="foodName" placeholder="e.g. Chicken breast, Greek yogurt..." />
+      </div>
+      <div class="macro-grid">
+        <div class="macro-input-group">
+          <label>Calories</label>
+          <input type="number" id="foodCal" placeholder="0" min="0" />
+        </div>
+        <div class="macro-input-group">
+          <label>Protein (g)</label>
+          <input type="number" id="foodProt" placeholder="0" min="0" />
+        </div>
+        <div class="macro-input-group">
+          <label>Carbs (g)</label>
+          <input type="number" id="foodCarb" placeholder="0" min="0" />
+        </div>
+        <div class="macro-input-group">
+          <label>Fat (g)</label>
+          <input type="number" id="foodFat" placeholder="0" min="0" />
+        </div>
+      </div>
+      <button class="btn-primary" onclick="addEntry()">Add entry</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <div class="card-title">Today's log</div>
+      <div class="entries-list" id="entriesList">
+        <div class="empty-state">No entries yet — add something above.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <div class="card-title">History</div>
+      <div class="tab-row">
+        <button class="tab-btn active" id="tabCal" onclick="switchChart('cal')">Calories</button>
+        <button class="tab-btn" id="tabProt" onclick="switchChart('prot')">Protein</button>
+        <button class="tab-btn" id="tabCarb" onclick="switchChart('carb')">Carbs</button>
+        <button class="tab-btn" id="tabFat" onclick="switchChart('fat')">Fat</button>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="historyChart" role="img" aria-label="History chart of nutrition over time">Nutrition history chart.</canvas>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const OWNER = 'ZES3';
+const REPO = 'calorie-tracker';
+const FILE_PATH = 'data/logs.json';
+const API_BASE = 'https://api.github.com';
+
+let token = '';
+let goals = { cal: 2000, prot: 150, carb: 200, fat: 65 };
+let logs = {};
+let currentDate = todayStr();
+let fileSha = null;
+let saveTimer = null;
+let chartInstance = null;
+let activeChart = 'cal';
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDateLabel(str) {
+  const d = new Date(str + 'T12:00:00');
+  if (str === todayStr()) return 'Today — ' + d.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  if (str === yesterday.toISOString().slice(0,10)) return 'Yesterday — ' + d.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+  return d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+}
+
+function load() {
+  token = localStorage.getItem('ct_token') || '';
+  const g = localStorage.getItem('ct_goals');
+  if (g) goals = JSON.parse(g);
+  if (token) {
+    document.getElementById('setupOverlay').style.display = 'none';
+    setStatus('Connecting...', false);
+    fetchLogs();
+  }
+  renderDate();
+}
+
+function openSettings() {
+  document.getElementById('tokenInput').value = token;
+  document.getElementById('goalCalInput').value = goals.cal;
+  document.getElementById('goalProtInput').value = goals.prot;
+  document.getElementById('goalCarbInput').value = goals.carb;
+  document.getElementById('goalFatInput').value = goals.fat;
+  document.getElementById('setupOverlay').style.display = 'flex';
+}
+
+async function setupSave() {
+  const t = document.getElementById('tokenInput').value.trim();
+  if (!t) { showSetupAlert('Please enter your GitHub token.', true); return; }
+  token = t;
+  goals.cal  = parseInt(document.getElementById('goalCalInput').value)  || 2000;
+  goals.prot = parseInt(document.getElementById('goalProtInput').value) || 150;
+  goals.carb = parseInt(document.getElementById('goalCarbInput').value) || 200;
+  goals.fat  = parseInt(document.getElementById('goalFatInput').value)  || 65;
+  localStorage.setItem('ct_token', token);
+  localStorage.setItem('ct_goals', JSON.stringify(goals));
+  document.getElementById('setupOverlay').style.display = 'none';
+  setStatus('Connecting...', false);
+  await fetchLogs();
+}
+
+function showSetupAlert(msg, isError) {
+  const el = document.getElementById('setupAlert');
+  el.innerHTML = `<div class="alert ${isError ? 'alert-danger' : 'alert-success'}">${msg}</div>`;
+}
+
+function showBanner(msg, isError) {
+  const el = document.getElementById('alertBanner');
+  el.innerHTML = `<div class="alert ${isError ? 'alert-danger' : 'alert-success'}" style="margin-bottom:1rem">${msg}</div>`;
+  setTimeout(() => { el.innerHTML = ''; }, 3500);
+}
+
+function setStatus(label, connected) {
+  document.getElementById('statusLabel').textContent = label;
+  document.getElementById('statusDot').className = 'status-dot' + (connected ? ' connected' : '');
+}
+
+async function fetchLogs() {
+  try {
+    const res = await fetch(`${API_BASE}/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' }
+    });
+    if (res.status === 404) {
+      logs = {};
+      fileSha = null;
+      setStatus('Connected — new file', true);
+      renderAll();
+      return;
+    }
+    if (!res.ok) throw new Error('Auth failed');
+    const data = await res.json();
+    fileSha = data.sha;
+    logs = JSON.parse(atob(data.content.replace(/\n/g, '')));
+    setStatus('Connected', true);
+    renderAll();
+  } catch(e) {
+    setStatus('Error — check token', false);
+    showBanner('Could not connect to GitHub. Check your token and try again.', true);
+  }
+}
+
+async function saveLogs() {
+  if (!token) return;
+  document.getElementById('savingIndicator').className = 'saving-indicator visible';
+  try {
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(logs, null, 2))));
+    const body = { message: `Update logs ${new Date().toISOString()}`, content };
+    if (fileSha) body.sha = fileSha;
+    const res = await fetch(`${API_BASE}/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('Save failed');
+    const data = await res.json();
+    fileSha = data.content.sha;
+    setStatus('Connected', true);
+  } catch(e) {
+    showBanner('Failed to save to GitHub. Check your connection.', true);
+    setStatus('Save error', false);
+  } finally {
+    document.getElementById('savingIndicator').className = 'saving-indicator';
+  }
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveLogs, 1200);
+}
+
+function addEntry() {
+  const name = document.getElementById('foodName').value.trim();
+  if (!name) { showBanner('Please enter a food name.', true); return; }
+  const entry = {
+    id: Date.now(),
+    name,
+    cal:  Math.round(parseFloat(document.getElementById('foodCal').value)  || 0),
+    prot: Math.round(parseFloat(document.getElementById('foodProt').value) || 0),
+    carb: Math.round(parseFloat(document.getElementById('foodCarb').value) || 0),
+    fat:  Math.round(parseFloat(document.getElementById('foodFat').value)  || 0),
+  };
+  if (!logs[currentDate]) logs[currentDate] = [];
+  logs[currentDate].push(entry);
+  document.getElementById('foodName').value = '';
+  document.getElementById('foodCal').value  = '';
+  document.getElementById('foodProt').value = '';
+  document.getElementById('foodCarb').value = '';
+  document.getElementById('foodFat').value  = '';
+  renderAll();
+  scheduleSave();
+}
+
+function deleteEntry(id) {
+  if (!logs[currentDate]) return;
+  logs[currentDate] = logs[currentDate].filter(e => e.id !== id);
+  renderAll();
+  scheduleSave();
+}
+
+function changeDay(dir) {
+  const d = new Date(currentDate + 'T12:00:00');
+  d.setDate(d.getDate() + dir);
+  const next = d.toISOString().slice(0,10);
+  if (next > todayStr()) return;
+  currentDate = next;
+  renderDate();
+  renderAll();
+}
+
+function renderDate() {
+  document.getElementById('dateLabel').textContent = formatDateLabel(currentDate);
+  const nextBtn = document.querySelector('.date-nav button:last-child');
+  nextBtn.disabled = currentDate === todayStr();
+  nextBtn.style.opacity = currentDate === todayStr() ? '0.3' : '1';
+}
+
+function renderAll() {
+  renderSummary();
+  renderEntries();
+  renderChart();
+}
+
+function renderSummary() {
+  const entries = logs[currentDate] || [];
+  const totals = entries.reduce((a, e) => ({
+    cal: a.cal + e.cal, prot: a.prot + e.prot, carb: a.carb + e.carb, fat: a.fat + e.fat
+  }), { cal:0, prot:0, carb:0, fat:0 });
+
+  document.getElementById('sumCal').textContent  = totals.cal;
+  document.getElementById('sumProt').textContent = totals.prot;
+  document.getElementById('sumCarb').textContent = totals.carb;
+  document.getElementById('sumFat').textContent  = totals.fat;
+
+  setBar('barCal',  'barCalLabel',  totals.cal,  goals.cal,  '', 'kcal');
+  setBar('barProt', 'barProtLabel', totals.prot, goals.prot, 'g', 'g');
+  setBar('barCarb', 'barCarbLabel', totals.carb, goals.carb, 'g', 'g');
+  setBar('barFat',  'barFatLabel',  totals.fat,  goals.fat,  'g', 'g');
+}
+
+function setBar(fillId, labelId, val, goal, unit, goalUnit) {
+  const pct = Math.min(100, Math.round((val / goal) * 100));
+  const fill = document.getElementById(fillId);
+  fill.style.width = pct + '%';
+  const over = val > goal;
+  fill.style.background = over ? '#dc2626' : fill.style.background;
+  document.getElementById(labelId).textContent = `${val}${unit} / ${goal}${goalUnit}`;
+}
+
+function renderEntries() {
+  const entries = logs[currentDate] || [];
+  const list = document.getElementById('entriesList');
+  if (!entries.length) {
+    list.innerHTML = '<div class="empty-state">No entries yet — add something above.</div>';
+    return;
+  }
+  list.innerHTML = entries.map(e => `
+    <div class="entry-row">
+      <div>
+        <div class="entry-name">${e.name}</div>
+        <div class="entry-macros">P: ${e.prot}g &nbsp; C: ${e.carb}g &nbsp; F: ${e.fat}g</div>
+      </div>
+      <div class="entry-kcal">${e.cal} kcal</div>
+      <button class="delete-btn" onclick="deleteEntry(${e.id})" aria-label="Delete entry">&#215;</button>
+    </div>
+  `).join('');
+}
+
+function switchChart(type) {
+  activeChart = type;
+  ['cal','prot','carb','fat'].forEach(t => {
+    document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).className = 'tab-btn' + (t === type ? ' active' : '');
+  });
+  renderChart();
+}
+
+function renderChart() {
+  const days = Object.keys(logs).sort().slice(-30);
+  if (!days.length) {
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    return;
+  }
+
+  const labels = days.map(d => {
+    const dt = new Date(d + 'T12:00:00');
+    return dt.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  });
+
+  const chartMeta = {
+    cal:  { label: 'Calories',   color: '#3b82f6', goal: goals.cal,  unit: 'kcal' },
+    prot: { label: 'Protein (g)', color: '#16a34a', goal: goals.prot, unit: 'g' },
+    carb: { label: 'Carbs (g)',   color: '#d97706', goal: goals.carb, unit: 'g' },
+    fat:  { label: 'Fat (g)',     color: '#7c3aed', goal: goals.fat,  unit: 'g' },
+  };
+
+  const meta = chartMeta[activeChart];
+  const values = days.map(d => {
+    const entries = logs[d] || [];
+    return Math.round(entries.reduce((s, e) => s + e[activeChart === 'cal' ? 'cal' : activeChart], 0));
+  });
+
+  const goalLine = new Array(days.length).fill(meta.goal);
+
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(document.getElementById('historyChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: meta.label,
+          data: values,
+          backgroundColor: meta.color + '99',
+          borderColor: meta.color,
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+        {
+          label: 'Goal',
+          data: goalLine,
+          type: 'line',
+          borderColor: '#dc2626',
+          borderDash: [4, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.label === 'Goal'
+              ? `Goal: ${ctx.parsed.y} ${meta.unit}`
+              : `${ctx.parsed.y} ${meta.unit}`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 11 }, maxRotation: 45, autoSkip: true } },
+        y: { beginAtZero: true, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+load();
+</script>
+</body>
+</html>

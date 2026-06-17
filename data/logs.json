@@ -17,6 +17,14 @@
       "prot": 6,
       "carb": 1,
       "fat": 6
+    },
+    {
+      "id": 1781723292087,
+      "name": "three eggs",
+      "cal": 270,
+      "prot": 18,
+      "carb": 2,
+      "fat": 21
     }
   ]
 }
